@@ -114,9 +114,20 @@ def load_model(
         else:
             path_pt = path+'best.pt'
         print(' [*] restoring model from', path_pt)
-        ckpt = torch.load(path_pt, map_location=torch.device(device))
+        ckpt = torch.load(path_pt, map_location='cpu')
         global_step = ckpt['global_step']
-        model.load_state_dict(ckpt['model'], strict=False)
+        new_dict = {}
+        state_dict = model.state_dict()
+        for k, v in ckpt['model'].items():
+            if k in state_dict and v.shape == state_dict[k].shape:
+                new_dict[k] = v
+            elif k in state_dict and v.shape != state_dict[k].shape:
+                print(f'{state_dict[k].shape} is different with {v.shape}, skip')
+            else:
+                print(f'{k} is not existed, skip')
+            
+        model.load_state_dict(new_dict, strict=False)
+        
         if ckpt.get('optimizer') != None:
             optimizer.load_state_dict(ckpt['optimizer'])
     return global_step, model, optimizer
