@@ -13,6 +13,7 @@ from ddsp.vocoder import F0_Extractor, Volume_Extractor, Units_Encoder
 from diffusion.vocoder import Vocoder
 from logger.utils import traverse_dir
 import concurrent.futures
+import torch_directml
 
 def parse_args(args=None, namespace=None):
     """Parse command-line arguments."""
@@ -147,6 +148,7 @@ if __name__ == '__main__':
     device = cmd.device
     if device is None:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch_directml.device()
 
     # load config
     args = utils.load_config(cmd.config)

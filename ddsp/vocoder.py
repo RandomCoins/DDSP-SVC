@@ -15,6 +15,8 @@ from torchaudio.transforms import Resample
 from .unit2control import Unit2Control
 from .core import frequency_filter, upsample, remove_above_fmax, MaskedAvgPool1d, MedianPool1d
 import time
+import whisper
+from whisper import pad_or_trim, log_mel_spectrogram
 
 CREPE_RESAMPLE_KERNEL = {}
 F0_KERNEL = {}
@@ -192,6 +194,9 @@ class Units_Encoder:
         if encoder == 'cnhubertsoftfish':
             self.model = CNHubertSoftFish(encoder_ckpt, device=device, gate_size=cnhubertsoft_gate)
             is_loaded_encoder = True
+        if encoder == 'whisper':
+            self.model = Audio2Whisper(encoder_ckpt, device=device)
+            is_loaded_encoder = True
         if not is_loaded_encoder:
             raise ValueError(f" [x] Unknown units encoder: {encoder}")
             
@@ -224,7 +229,24 @@ class Units_Encoder:
         index = torch.clamp(torch.round(ratio * torch.arange(n_frames).to(self.device)).long(), max = units.size(1) - 1)
         units_aligned = torch.gather(units, 1, index.unsqueeze(0).unsqueeze(-1).repeat([1, 1, units.size(-1)]))
         return units_aligned
-        
+
+class Audio2Whisper():
+    def __init__(self, path, device='cpu'):
+        self.device = device
+        print(' [Encoder Model] Whisper')
+        self.whisper = whisper.load_model(path)
+        print(' [Loading] ' + path)
+        self.whisper = self.whisper.to(device)
+        self.whisper.eval()
+
+    def __call__(self, audio):
+        with torch.no_grad():
+            mel = pad_or_trim(audio)
+            mel = log_mel_spectrogram(mel, n_mels=self.whisper.dims.n_mels, device=self.device)
+            units = self.whisper.embed_audio(mel)
+        return units
+
+
 class Audio2HubertSoft(torch.nn.Module):
     def __init__(self, path, h_sample_rate = 16000, h_hop_size = 320):
         super().__init__()

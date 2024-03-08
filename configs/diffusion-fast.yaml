@@ -5,12 +5,12 @@ data:
   sampling_rate: 44100
   block_size: 512 # Equal to hop_length
   duration: 2 # Audio duration during training, must be less than the duration of the shortest audio clip
-  encoder: 'contentvec768l12' # 'hubertsoft', 'hubertbase', 'hubertbase768', 'contentvec', 'contentvec768' or 'contentvec768l12' or 'cnhubertsoftfish'
+  encoder: 'whisper' # 'hubertsoft', 'hubertbase', 'hubertbase768', 'contentvec', 'contentvec768' or 'contentvec768l12' or 'cnhubertsoftfish'
   cnhubertsoft_gate: 10
   encoder_sample_rate: 16000
-  encoder_hop_size: 320
-  encoder_out_channels: 768 # 256 if using 'hubertsoft'
-  encoder_ckpt: pretrain/contentvec/checkpoint_best_legacy_500.pt
+  encoder_hop_size: 160
+  encoder_out_channels: 1280 # 256 if using 'hubertsoft'
+  encoder_ckpt: pretrain/whisper/large-v3.pt
   train_path: data/train # Create a folder named "audio" under this path and put the audio clip in it
   valid_path: data/val # Create a folder named "audio" under this path and put the audio clip in it
   extensions: # List of extension included in the data collection
