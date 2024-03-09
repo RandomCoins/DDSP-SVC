@@ -241,9 +241,12 @@ class Audio2Whisper():
 
     def __call__(self, audio):
         with torch.no_grad():
+            audln = audio.shape[-1]
+            ppgln = audln // 320
             mel = pad_or_trim(audio)
             mel = log_mel_spectrogram(mel, n_mels=self.whisper.dims.n_mels, device=self.device)
             units = self.whisper.embed_audio(mel)
+            units = units[:, :ppgln, ...]
         return units
 
 
