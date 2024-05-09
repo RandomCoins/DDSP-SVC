@@ -17,7 +17,7 @@ class RectifiedFlow(nn.Module):
         self.spec_min = spec_min
         self.spec_max = spec_max
     
-    def reflow_loss(self, x_1, t, cond, loss_type='l2'):
+    def reflow_loss(self, x_1, t, cond, loss_type='l2_lognorm'):
         x_0 = torch.randn_like(x_1)
         x_t = x_0 + t[:, None, None, None] * (x_1 - x_0)
         v_pred = self.velocity_fn(x_t, 1000 * t, cond)
@@ -26,6 +26,9 @@ class RectifiedFlow(nn.Module):
             loss = (x_1 - x_0 - v_pred).abs().mean()
         elif loss_type == 'l2':
             loss = F.mse_loss(x_1 - x_0, v_pred)
+        elif loss_type == 'l2_lognorm':
+            weights = 0.398942 / t / (1 - t) * torch.exp(-0.5 * torch.log(t / ( 1 - t)) ** 2)
+            loss = torch.mean(weights[:, None, None, None] * F.mse_loss(x_1 - x_0, v_pred, reduction='none'))
         else:
             raise NotImplementedError()
 
@@ -61,6 +64,7 @@ class RectifiedFlow(nn.Module):
             x_1 = self.norm_spec(gt_spec)
             x_1 = x_1.transpose(1, 2)[:, None, :, :]  # [B, 1, M, T]
             t = t_start + (1.0 - t_start) * torch.rand(b, device=device)
+            t = torch.clip(t, 1e-7, 1-1e-7)
             return self.reflow_loss(x_1, t, cond=cond)
         else:
             shape = (cond.shape[0], 1, self.out_dims, cond.shape[2]) # [B, 1, M, T]
