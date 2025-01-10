@@ -168,7 +168,7 @@ tensorboard --logdir=exp
 python main_reflow.py -i <input.wav> -m <model_ckpt.pt> -o <output.wav> -k <keychange (semitones)> -id <speaker_id> -step <infer_step> -method <method> -ts <t_start>
 ```
 
-'infer_step' 为 rectified-flow ODE 的采样步数，'method' 为 'euler' 或 'rk4'，'t_start' 为 ODE 的起始时间点，需要大于或等于配置文件中的 `t_start`，建议保持相等（默认为 0.7）。
+'infer_step' 为 rectified-flow ODE 的采样步数，'method' 为 'euler' 或 'rk4'，'t_start' 为 ODE 的起始时间点，需要大于或等于配置文件中的 `t_start`，建议保持相等（默认为 0.0）。
 
 如果要使用混合说话人（捏音色）功能，增添 “-mix” 选项来设计音色，下面是个例子：
 
