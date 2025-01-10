@@ -145,15 +145,17 @@ class F0_Extractor:
 
 
 class Volume_Extractor:
-    def __init__(self, hop_size = 512):
+    def __init__(self, hop_size = 512, win_size = 2048):
         self.hop_size = hop_size
+        self.win_size = win_size
         
     def extract(self, audio): # audio: 1d numpy array
         n_frames = int(len(audio) // self.hop_size) + 1
+        audio = np.pad(audio, (int(self.win_size // 2), int((self.win_size + 1) // 2)), mode = 'reflect')
         audio2 = audio ** 2
-        audio2 = np.pad(audio2, (int(self.hop_size // 2), int((self.hop_size + 1) // 2)), mode = 'reflect')
-        volume = np.array([np.mean(audio2[int(n * self.hop_size) : int((n + 1) * self.hop_size)]) for n in range(n_frames)])
-        volume = np.sqrt(volume)
+        mean = np.array([np.mean(audio[int(n * self.hop_size) : int(n * self.hop_size + self.win_size)]) for n in range(n_frames)])
+        mean_square = np.array([np.mean(audio2[int(n * self.hop_size) : int(n * self.hop_size + self.win_size)]) for n in range(n_frames)])
+        volume = np.sqrt(mean_square - mean ** 2)
         return volume
     
          
@@ -188,6 +190,9 @@ class Units_Encoder:
             is_loaded_encoder = True
         if encoder == 'contentvec768l12':
             self.model = Audio2ContentVec768L12(encoder_ckpt, device=device)
+            is_loaded_encoder = True
+        if encoder == 'contentvec768l12tta2x':
+            self.model = Audio2ContentVec768L12TTA2X(encoder_ckpt, device=device)
             is_loaded_encoder = True
         if encoder == 'cnhubertsoftfish':
             self.model = CNHubertSoftFish(encoder_ckpt, device=device, gate_size=cnhubertsoft_gate)
@@ -325,6 +330,42 @@ class Audio2ContentVec768L12():
             feats = logits[0]
         units = feats  # .transpose(2, 1)
         return units    
+
+
+class Audio2ContentVec768L12TTA2X():
+    def __init__(self, path, h_sample_rate=16000, h_hop_size=160, device='cpu'):
+        self.device = device
+        print(' [Encoder Model] Content Vec')
+        print(' [Loading] ' + path)
+        self.models, self.saved_cfg, self.task = checkpoint_utils.load_model_ensemble_and_task([path], suffix="", )
+        self.hubert = self.models[0]
+        self.hubert = self.hubert.to(self.device)
+        self.hubert.eval()
+
+    def __call__(self,
+                 audio):  # B, T
+        # wav_tensor = torch.from_numpy(audio).to(self.device)
+        wav_tensor = audio
+        feats = wav_tensor.view(1, -1)
+        padding_mask = torch.BoolTensor(feats.shape).fill_(False)
+        inputs = {
+            "source": feats.to(wav_tensor.device),
+            "padding_mask": padding_mask.to(wav_tensor.device),
+            "output_layer": 12,  # layer 12
+        }
+        with torch.no_grad():
+            feats = self.hubert.extract_features(**inputs)[0]
+            inputs["source"] = F.pad(inputs["source"], (160, 0))
+            feats2 = self.hubert.extract_features(**inputs)[0]
+            n = feats2.shape[1] - feats.shape[1]
+            if n > 0:
+                feats = F.pad(feats, (0, 0, 0, 1))
+            feats_tta = torch.cat((feats2, feats), dim=2).reshape(feats.shape[0], -1, feats.shape[-1])
+            feats_tta = feats_tta[:, 1:, :]
+            if n > 0:
+                feats_tta = feats_tta[:, :-1, :]
+        units = feats_tta  # .transpose(2, 1)
+        return units
 
 
 class CNHubertSoftFish(torch.nn.Module):

@@ -66,7 +66,7 @@ Then run the preprocessor:
 python preprocess.py -c configs/reflow.yaml
 ```
 
-NOTE 1: The default configuration is suitable for with GTX-1660 graphics card.
+NOTE 1: The default configuration is suitable for with RTX-4060 graphics card.
 
 NOTE 2: Please keep the sampling rate of all audio clips consistent with the sampling rate in the yaml configuration file ! If it is not consistent, the program can be executed safely, but the resampling during the training process will be very slow.
 

@@ -93,15 +93,14 @@ class LYNXNetResidualLayer(nn.Module):
         self.convmodule = LYNXConvModule(dim=dim, expansion_factor=expansion_factor, kernel_size=kernel_size, in_norm=in_norm, activation=activation, dropout=dropout)
 
     def forward(self, x, conditioner, diffusion_step):
+        x = x + self.conditioner_projection(conditioner)
         res_x = x.transpose(1, 2)
-        x = x + self.diffusion_projection(diffusion_step) + self.conditioner_projection(conditioner)
+        x = x + self.diffusion_projection(diffusion_step)
         x = x.transpose(1, 2)
         x = self.convmodule(x)  # (#batch, dim, length)
         x = x + res_x
         x = x.transpose(1, 2)
-
         return x  # (#batch, length, dim)
-
 
 class LYNXNet(nn.Module):
     def __init__(self, in_dims, dim_cond, n_feats=1, n_layers=6, n_chans=512, n_dilates=2, in_norm=False, activation='PReLU', dropout=0.):
@@ -156,7 +155,7 @@ class LYNXNet(nn.Module):
         assert x.dim() == 3, f"mel must be 3 dim tensor, but got {x.dim()}"
 
         x = self.input_projection(x)  # x [B, residual_channel, T]
-        x = F.gelu(x)
+        #x = F.gelu(x)
         
         diffusion_step = self.diffusion_embedding(diffusion_step).unsqueeze(-1)
         

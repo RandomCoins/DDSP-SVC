@@ -234,7 +234,11 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
             
             # handle nan loss
             if torch.isnan(ddsp_loss):
-                raise ValueError(' [x] nan ddsp_loss ')
+                print(' [x] nan ddsp_loss ')
+                optimizer.zero_grad()
+                del ddsp_loss
+                del reflow_loss
+                continue
             elif torch.isnan(reflow_loss):
                 raise ValueError(' [x] nan reflow_loss ')
             else:

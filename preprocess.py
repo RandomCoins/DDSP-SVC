@@ -164,7 +164,7 @@ if __name__ == '__main__':
                         args.data.f0_max)
     
     # initialize volume extractor
-    volume_extractor = Volume_Extractor(args.data.block_size)
+    volume_extractor = Volume_Extractor(args.data.block_size, args.data.volume_smooth_size)
     
     # initialize mel extractor
     mel_extractor = None
