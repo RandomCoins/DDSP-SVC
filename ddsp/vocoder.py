@@ -155,7 +155,7 @@ class Volume_Extractor:
         audio2 = audio ** 2
         mean = np.array([np.mean(audio[int(n * self.hop_size) : int(n * self.hop_size + self.win_size)]) for n in range(n_frames)])
         mean_square = np.array([np.mean(audio2[int(n * self.hop_size) : int(n * self.hop_size + self.win_size)]) for n in range(n_frames)])
-        volume = np.sqrt(mean_square - mean ** 2)
+        volume = np.sqrt(np.clip(mean_square - mean ** 2, 0, None))
         return volume
     
          
