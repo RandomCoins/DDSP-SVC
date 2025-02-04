@@ -6,7 +6,7 @@ data:
   volume_smooth_size: 8192
   block_size: 512 # Equal to hop_length
   duration: 2 # Audio duration during training, must be less than the duration of the shortest audio clip
-  encoder: 'contentvec768l12tta2x' # 'hubertsoft', 'hubertbase', 'hubertbase768', 'contentvec', 'contentvec768', 'contentvec768l12', 'contentvec768l12tta2x' or 'cnhubertsoftfish'
+  encoder: 'contentvec768l12' # 'hubertsoft', 'hubertbase', 'hubertbase768', 'contentvec', 'contentvec768', 'contentvec768l12', 'contentvec768l12tta2x' or 'cnhubertsoftfish'
   cnhubertsoft_gate: 10
   encoder_sample_rate: 16000
   encoder_hop_size: 160 # 160 for 'contentvec768l12tta2x', 320 for any others
