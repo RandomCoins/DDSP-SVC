@@ -9,7 +9,7 @@ import parselmouth
 import hashlib
 from ast import literal_eval
 from slicer import Slicer
-from ddsp.vocoder import load_model, F0_Extractor, Volume_Extractor, Units_Encoder
+from ddsp.vocoder import F0_Extractor, Volume_Extractor, Units_Encoder
 from ddsp.core import upsample
 from reflow.vocoder import load_model_vocoder
 from tqdm import tqdm
@@ -194,7 +194,8 @@ if __name__ == '__main__':
     if len(audio.shape) > 1:
         audio = librosa.to_mono(audio)
     hop_size = args.data.block_size * sample_rate / args.data.sampling_rate
-    
+    win_size = args.data.volume_smooth_size * sample_rate / args.data.sampling_rate
+
     # get MD5 hash from wav file
     md5_hash = ""
     with open(cmd.input, 'rb') as f:
@@ -236,11 +237,9 @@ if __name__ == '__main__':
     
     # extract volume 
     print('Extracting the volume envelope of the input audio...')
-    volume_extractor = Volume_Extractor(hop_size)
+    volume_extractor = Volume_Extractor(hop_size, win_size)
     volume = volume_extractor.extract(audio)
     mask = (volume > 10 ** (float(cmd.threhold) / 20)).astype('float')
-    mask = np.pad(mask, (4, 4), constant_values=(mask[0], mask[-1]))
-    mask = np.array([np.max(mask[n : n + 9]) for n in range(len(mask) - 8)])
     mask = torch.from_numpy(mask).float().to(device).unsqueeze(-1).unsqueeze(0)
     mask = upsample(mask, args.data.block_size).squeeze(-1)
     volume = torch.from_numpy(volume).float().to(device).unsqueeze(-1).unsqueeze(0)

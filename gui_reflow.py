@@ -85,6 +85,7 @@ class SvcDDSP:
         # load input
         # audio, sample_rate = librosa.load(input_wav, sr=None, mono=True)
         hop_size = self.args.data.block_size * sample_rate / self.args.data.sampling_rate
+        win_size = self.args.data.volume_smooth_size * sample_rate / self.args.data.sampling_rate
         if audio_alignment:
             audio_length = len(audio)
         # safe front silence
@@ -109,11 +110,9 @@ class SvcDDSP:
         formant_shift_key = torch.from_numpy(np.array([[float(formant_shift_key)]])).float().to(self.device)
 
         # extract volume
-        volume_extractor = Volume_Extractor(hop_size)
+        volume_extractor = Volume_Extractor(hop_size, win_size)
         volume = volume_extractor.extract(audio)
         mask = (volume > 10 ** (float(threhold) / 20)).astype('float')
-        mask = np.pad(mask, (4, 4), constant_values=(mask[0], mask[-1]))
-        mask = np.array([np.max(mask[n: n + 9]) for n in range(len(mask) - 8)])
         mask = torch.from_numpy(mask).float().to(self.device).unsqueeze(-1).unsqueeze(0)
         mask = upsample(mask, self.args.data.block_size).squeeze(-1)
         volume = torch.from_numpy(volume).float().to(self.device).unsqueeze(-1).unsqueeze(0)

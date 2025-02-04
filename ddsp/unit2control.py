@@ -4,10 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn.utils import weight_norm
-
-from .pcmer import PCmer
-from diffusion.model_conformer_naive import ConformerNaiveEncoder
-
+from .model_conformer_naive import ConformerNaiveEncoder
 
 
 def split_to_dict(tensor, tensor_splits):
@@ -27,61 +24,48 @@ class Unit2Control(nn.Module):
     def __init__(
             self,
             input_channel,
+            block_size,
             n_spk,
             output_splits,
-            use_pitch_aug=False,
-            pcmer_norm=False,
-            use_naive_v2=False,
-            use_conv_stack=True):
+            num_layers=3,
+            dim_model=256,
+            use_norm=False,
+            use_attention=False,
+            use_pitch_aug=False):
         super().__init__()
         self.output_splits = output_splits
-        self.f0_embed = nn.Linear(1, 256)
-        self.phase_embed = nn.Linear(1, 256)
-        self.volume_embed = nn.Linear(1, 256)
+        self.f0_embed = nn.Linear(1, dim_model)
+        self.phase_embed = nn.Linear(1, dim_model)
+        self.volume_embed = nn.Linear(1, dim_model)
         self.n_spk = n_spk
         if n_spk is not None and n_spk > 1:
-            self.spk_embed = nn.Embedding(n_spk, 256)
+            self.spk_embed = nn.Embedding(n_spk, dim_model)
         if use_pitch_aug:
-            self.aug_shift_embed = nn.Linear(1, 256, bias=False)
+            self.aug_shift_embed = nn.Linear(1, dim_model, bias=False)
         else:
             self.aug_shift_embed = None
             
-        if use_conv_stack:
-            self.stack = nn.Sequential(
-                    nn.Conv1d(input_channel, 256, 3, 1, 1),
-                    nn.GroupNorm(4, 256),
-                    nn.LeakyReLU(),
-                    nn.Conv1d(256, 256, 3, 1, 1))
-        else:
-            self.stack = nn.Conv1d(input_channel, 256, 3, 1, 1)
-
-        if use_naive_v2:
-            self.decoder = ConformerNaiveEncoder(
-                num_layers=3,
+        self.stack = nn.Sequential(
+                weight_norm(nn.Conv1d(input_channel, 512, 3, 1, 1)),
+                nn.PReLU(num_parameters=512),
+                weight_norm(nn.Conv1d(512, dim_model, 3, 1, 1)))
+        self.stack2 = nn.Sequential(
+                weight_norm(nn.Conv1d(2 * block_size, 512, 3, 1, 1)),
+                nn.PReLU(num_parameters=512),
+                weight_norm(nn.Conv1d(512, dim_model, 3, 1, 1)))
+        self.decoder = ConformerNaiveEncoder(
+                num_layers=num_layers,
                 num_heads=8,
-                dim_model=256,
-                use_norm=False,
-                conv_only=True,
+                dim_model=dim_model,
+                use_norm=use_norm,
+                conv_only=not use_attention,
                 conv_dropout=0,
                 atten_dropout=0.1)
-        else:
-            self.decoder = PCmer(
-                num_layers=3,
-                num_heads=8,
-                dim_model=256,
-                dim_keys=256,
-                dim_values=256,
-                residual_dropout=0.1,
-                attention_dropout=0.1,
-                pcmer_norm=pcmer_norm)
-        self.norm = nn.LayerNorm(256)
-
-        # out
+        self.norm = nn.LayerNorm(dim_model)
         self.n_out = sum([v for k, v in output_splits.items()])
-        self.dense_out = weight_norm(
-            nn.Linear(256, self.n_out))
+        self.dense_out = weight_norm(nn.Linear(dim_model, self.n_out))
 
-    def forward(self, units, f0, phase, volume, spk_id = None, spk_mix_dict = None, aug_shift = None):
+    def forward(self, units, source, noise, volume, spk_id = None, spk_mix_dict = None, aug_shift = None):
         
         '''
         input: 
@@ -89,9 +73,9 @@ class Unit2Control(nn.Module):
         return: 
             dict of B x n_frames x feat
         '''
-
-        x = self.stack(units.transpose(1,2)).transpose(1,2)
-        x = x + self.f0_embed((1+ f0 / 700).log()) + self.phase_embed(phase / np.pi) + self.volume_embed(volume)
+        exciter = torch.cat((source, noise), dim=-1).transpose(1,2)
+        x = self.stack(units.transpose(1, 2)) + self.stack2(exciter)
+        x = x.transpose(1, 2) + self.volume_embed(volume)
         if self.n_spk is not None and self.n_spk > 1:
             if spk_mix_dict is not None:
                 for k, v in spk_mix_dict.items():
