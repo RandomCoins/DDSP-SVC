@@ -145,6 +145,14 @@ def parse_args(args=None, namespace=None):
         help="formant changed (number of semitones) , only for pitch-augmented model| default: 0",
     )
     parser.add_argument(
+        "-v",
+        "--vocal_register_shift_key",
+        type=str,
+        required=False,
+        default=0,
+        help="vocal register changed (number of semitones) , only for pc-type vocoder| default: 0",
+    )
+    parser.add_argument(
         "-pe",
         "--pitch_extractor",
         type=str,
@@ -260,6 +268,13 @@ def infer(input_path, output_path, cmd, device, model, vocoder, args, units_enco
     # formant change
     formant_shift_key = torch.from_numpy(np.array([[float(cmd.formant_shift_key)]])).float().to(device)
 
+    # vocal register change
+    if vocoder.vocoder.h.pc_aug:
+        vocal_register_factor = 2 ** (float(cmd.vocal_register_shift_key) / 12)
+    else:
+        print('Vocal register shift is not supported for current vocoder!')
+        vocal_register_factor = 1
+        
     # extract volume
     print('Extracting the volume envelope of the input audio...')
     volume_extractor = Volume_Extractor(hop_size, win_size)
@@ -312,21 +327,22 @@ def infer(input_path, output_path, cmd, device, model, vocoder, args, units_enco
         exit(0)
 
     with torch.no_grad():
-        output = model(
+        mel = model(
             units,
-            f0,
+            f0 / vocal_register_factor,
             volume,
             spk_id=spk_id,
             spk_mix_dict=spk_mix_dict,
             aug_shift=formant_shift_key,
             vocoder=vocoder,
             infer=True,
-            return_wav=True,
             infer_step=infer_step, 
             method=method,
             t_start=t_start)
+        output = vocoder.infer(mel, f0)
         output *= mask
         output = output.squeeze().cpu().numpy()
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         sf.write(output_path, output, args.data.sampling_rate)
 
 

@@ -26,7 +26,7 @@ We recommend first installing PyTorch from the [official website](https://pytorc
 pip install -r requirements.txt
 ```
 
-python 3.8 (windows) + cuda 11.8 + torch 2.0.0 + torchaudio 2.0.1
+python 3.8 (windows) + cuda 11.8 + torch 2.4.1 + torchaudio 2.4.1 works.
 
 ## 2. Configuring the pretrained model
 

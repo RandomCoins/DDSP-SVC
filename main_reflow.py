@@ -90,6 +90,14 @@ def parse_args(args=None, namespace=None):
         help="formant changed (number of semitones) , only for pitch-augmented model| default: 0",
     )
     parser.add_argument(
+        "-v",
+        "--vocal_register_shift_key",
+        type=str,
+        required=False,
+        default=0,
+        help="vocal register changed (number of semitones) , only for pc-type vocoder| default: 0",
+    )
+    parser.add_argument(
         "-pe",
         "--pitch_extractor",
         type=str,
@@ -235,6 +243,13 @@ if __name__ == '__main__':
     # formant change
     formant_shift_key = torch.from_numpy(np.array([[float(cmd.formant_shift_key)]])).float().to(device)
     
+    # vocal register change
+    if vocoder.vocoder.h.pc_aug:
+        vocal_register_factor = 2 ** (float(cmd.vocal_register_shift_key) / 12)
+    else:
+        print('Vocal register shift is not supported for current vocoder!')
+        vocal_register_factor = 1
+    
     # extract volume 
     print('Extracting the volume envelope of the input audio...')
     volume_extractor = Volume_Extractor(hop_size, win_size)
@@ -307,21 +322,19 @@ if __name__ == '__main__':
             seg_input = torch.from_numpy(segment[1]).float().unsqueeze(0).to(device)
             seg_units = units_encoder.encode(seg_input, sample_rate, hop_size)
             seg_f0 = f0[:, start_frame : start_frame + seg_units.size(1), :]
-            seg_volume = volume[:, start_frame : start_frame + seg_units.size(1), :]
-    
-            seg_output = model(
+            seg_volume = volume[:, start_frame : start_frame + seg_units.size(1), :]    
+            seg_mel = model(
                     seg_units, 
-                    seg_f0, 
+                    seg_f0 / vocal_register_factor, 
                     seg_volume, 
                     spk_id = spk_id, 
                     spk_mix_dict = spk_mix_dict,
                     aug_shift = formant_shift_key,
                     vocoder=vocoder,
-                    infer=True,
-                    return_wav=True,
                     infer_step=infer_step, 
                     method=method,
                     t_start=t_start)
+            seg_output = vocoder.infer(seg_mel, seg_f0)
             seg_output *= mask[:, start_frame * args.data.block_size : (start_frame + seg_units.size(1)) * args.data.block_size]
             seg_output = seg_output.squeeze().cpu().numpy()
             
